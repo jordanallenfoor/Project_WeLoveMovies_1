@@ -1,62 +1,49 @@
-const service = require("./movies.service");
+const moviesService = require("./movies.service");
 const asyncErrorBoundary = require("../errors/asyncErrorBoundary");
 
+async function list(req, res, next) {
+  const data = await moviesService.list(req.query.is_showing);
+  res.json({ data });
+}
+
 async function movieExists(req, res, next) {
-  const movieList = await service.read(req.params.movieId);
-  const movie = movieList[0];
+  const { movieId } = req.params;
+  const movie = await moviesService.read(movieId);
   if (movie) {
+    res.locals.movieId = movieId;
     res.locals.movie = movie;
     return next();
   }
-  next({ status: 404, message: "Movie cannot be found." });
-}
-
-async function list(req, res) {
-  const isShowing = req.query.is_showing;
-  const data = isShowing ? await service.listIsShowing() : await service.list();
-  res.json({ data });
+  next({ status: 404, message: `Movie cannot be found.` });
 }
 
 function read(req, res) {
-  const { movie: data } = res.locals;
-  res.json({ data: data });
+  const { movie } = res.locals;
+  res.json({ data: movie });
 }
 
-async function readTheatersByMovieId(req, res) {
-  const id = req.params.movieId;
-  const theatersData = await service.readTheatersByMovieId(id);
-
-  const now = new Date().toISOString();
-  const timestamp = { created_at: now, updated_at: now };
-
-  const data = theatersData.map((theater) => {
-    return { ...theater, ...timestamp };
-  });
-
-  res.json({ data });
+//check movie_theaters table for theater info
+async function readTheaters(req, res) {
+  const { movieId } = res.locals;
+  const theaters = await moviesService.readTheaters(movieId);
+  res.json({ data: theaters });
 }
 
-async function readReviewsByMovieId(req, res) {
-  const id = req.params.movieId;
-  const reviewsData = await service.readReviewsByMovieId(id);
-  const critics = await service.listCritics();
-
-  const now = new Date().toISOString();
-  const timestamp = { created_at: now, updated_at: now };
-
-  const data = reviewsData.map((review) => {
-    const foundCritic = {
-      critic: critics.find((critic) => critic.critic_id === review.critic_id),
-    };
-    return { ...review, ...timestamp, ...foundCritic };
-  });
-
-  res.json({ data });
+async function readReviews(req, res) {
+  const { movieId } = res.locals;
+  const reviews = await moviesService.readReviews(movieId);
+  res.json({ data: reviews });
 }
 
 module.exports = {
-  list: [asyncErrorBoundary(list)],
   read: [asyncErrorBoundary(movieExists), read],
-  readTheatersByMovieId: [asyncErrorBoundary(readTheatersByMovieId)],
-  readReviewsByMovieId: [asyncErrorBoundary(readReviewsByMovieId)],
+  readTheaters: [
+    asyncErrorBoundary(movieExists),
+    asyncErrorBoundary(readTheaters),
+  ],
+  readReviews: [
+    asyncErrorBoundary(movieExists),
+    asyncErrorBoundary(readReviews),
+  ],
+  list: asyncErrorBoundary(list),
 };

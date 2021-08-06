@@ -1,44 +1,58 @@
 const knex = require("../db/connection");
+const mapProperties = require("../utils/map-properties");
 
-function list() {
-  return knex("movies").select("*");
+function list(is_showing) {
+  return knex("movies")
+    .select("movies.*")
+    .modify((queryBuilder) => {
+      if (is_showing) {
+        queryBuilder
+          .join(
+            "movies_theaters",
+            "movies.movie_id",
+            "movies_theaters.movie_id"
+          )
+          .where({ "movies_theaters.is_showing": true })
+          .groupBy("movies.movie_id");
+      }
+    });
 }
 
-function listCritics() {
-  return knex("critics").select("*");
+function read(movie_id) {
+  return knex("movies").select("*").where({ movie_id }).first();
 }
 
-function listIsShowing() {
-  return knex("movies as m")
-    .join("movies_theaters as mt", "m.movie_id", "mt.movie_id")
-    .distinct("m.*")
-    .where({ "mt.is_showing": true });
+function readTheaters(movie_id) {
+  return knex("theaters")
+    .join(
+      "movies_theaters",
+      "theaters.theater_id",
+      "movies_theaters.theater_id"
+    )
+    .select("*")
+    .where("movie_id", movie_id);
 }
 
-function read(id) {
-  return knex("movies").select("*").where({ movie_id: id });
-}
+const addCritic = mapProperties({
+  critic_id: "critic.critic_id",
+  preferred_name: "critic.preferred_name",
+  surname: "critic.surname",
+  organization_name: "critic.organization_name",
+});
 
-function readTheatersByMovieId(id) {
-  return knex("theaters as t")
-    .join("movies_theaters as mt", "t.theater_id", "mt.theater_id")
-    .select("t.*", "mt.is_showing", "mt.movie_id")
-    .join("movies as m", "mt.movie_id", "m.movie_id")
-    .where({ "mt.movie_id": id });
-}
-
-function readReviewsByMovieId(id) {
+function readReviews(movie_id) {
   return knex("reviews as r")
-    .join("movies as m", "r.movie_id", "m.movie_id")
-    .select("r.*")
-    .where({ "r.movie_id": id });
+    .join("critics as c", "r.critic_id", "c.critic_id")
+    .select("*")
+    .where("movie_id", movie_id)
+    .then((data) => {
+      return Promise.all(data.map(addCritic));
+    });
 }
 
 module.exports = {
   list,
-  listCritics,
-  listIsShowing,
   read,
-  readTheatersByMovieId,
-  readReviewsByMovieId,
+  readTheaters,
+  readReviews,
 };

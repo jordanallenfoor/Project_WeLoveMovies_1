@@ -19,7 +19,7 @@ async function update(req, res) {
   const time = new Date().toISOString();
   const { reviewId } = req.params;
   await service.update(req.body.data, reviewId);
-  const dataWithNoTimes = await service.readUpdateWithCritics(reviewId);
+  const dataWithNoTimes = await service.readUpdateWithCritic(reviewId);
   const data = { ...dataWithNoTimes, created_at: time, updated_at: time };
   res.json({ data });
 }
